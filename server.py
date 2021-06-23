@@ -1,10 +1,9 @@
-import os
 import socket
 import sys
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-s.bind((str(os.getenv('hostname')), 7734))
+s.bind((sys.argv[1], 7734))
 
 s.listen(5)
 
