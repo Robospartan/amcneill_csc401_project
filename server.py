@@ -15,18 +15,39 @@ class RFC:
         self.rfc_peer_hostname: str = rfc_peer_hostname
         self.next_rfc: RFC = None
 
-peer_head = Peer()
-rfc_head = RFC()
+peer_head = Peer('', 0)
+rfc_head = RFC('', '', '')
 
 modifying_peer_list = threading.Semaphore(1)
 modifying_rfc_list = threading.Semaphore(1)
 
-def peer_connection(socket: socket.socket, addr):
+def peer_connection(peer_socket: socket.socket, addr):
     first_add = True
     while True:
-        request_lines = str(socket.recv(1024), "utf-8").splitlines()
+        raw_request = str(peer_socket.recv(1024), "utf-8")
+        print(raw_request)
+        request_lines = raw_request.splitlines()
         request = {}
         try:
+            if request_lines[0].split()[0] == 'CLOSE':
+                curr_rfc = rfc_head
+                modifying_rfc_list.acquire()
+                while curr_rfc.next_rfc != None:
+                    if curr_rfc.next_rfc.rfc_peer_hostname == request_lines[0].split()[1]:
+                        curr_rfc.next_rfc = curr_rfc.next_rfc.next_rfc
+                    else:
+                        curr_rfc = curr_rfc.next_rfc
+                modifying_rfc_list.release()
+                curr_peer = peer_head
+                modifying_peer_list.acquire()
+                while curr_peer.next_peer != None:
+                    if curr_peer.next_peer.hostname == request_lines[0].split()[1]:
+                        curr_peer.next_peer = curr_peer.next_peer.next_peer
+                    else:
+                        curr_peer = curr_peer.next_peer
+                modifying_peer_list.release()
+                peer_socket.close()
+                return
             request_first_line = request_lines[0].split()
             request = {
                 'method': request_first_line[0],
@@ -38,10 +59,10 @@ def peer_connection(socket: socket.socket, addr):
                 header_field_start = line.find(':')
                 request[line[: header_field_start]] = line[header_field_start + 2 :]
         except IndexError:
-            socket.send('P2P-CI/1.0 400 Bad Request\r\n')
+            peer_socket.send(bytes('P2P-CI/1.0 400 Bad Request\n', 'utf-8'))
         try:
             if request['version'] != 'P2P-CI/1.0':
-                socket.send('P2P-CI/1.0 505 P2P-CI Version not Supported\r\n')
+                peer_socket.send(bytes('P2P-CI/1.0 505 P2P-CI Version not Supported\n', 'utf-8'))
             elif request['method'] == 'ADD':
                 if first_add:
                     modifying_peer_list.acquire()
@@ -57,22 +78,22 @@ def peer_connection(socket: socket.socket, addr):
                     curr_rfc = curr_rfc.next_rfc
                 curr_rfc.next_rfc = RFC(request['rfc_number'], request['Title'], request['Host'])
                 modifying_rfc_list.release()
-                socket.send(request['version'] + ' 200 OK\r\nRFC ' + request['rfc_number'] + ' ' + request['Title'] + ' ' + request['Host'] + ' ' + request['Port'] + '\r\n')
+                peer_socket.send(bytes(request['version'] + ' 200 OK\nRFC ' + request['rfc_number'] + ' ' + request['Title'] + ' ' + request['Host'] + ' ' + request['Port'] + '\n', 'utf-8'))
             elif request['method'] == 'LOOKUP':
                 curr_rfc = rfc_head.next_rfc
                 rfc_list = ''
                 while curr_rfc != None:
-                    if curr_rfc.rfc_title == request['Title']:
+                    if str(curr_rfc.rfc_number) == request['rfc_number']:
                         rfc_list += 'RFC ' + curr_rfc.rfc_number + ' ' + curr_rfc.rfc_title + ' ' + curr_rfc.rfc_peer_hostname
                         curr_peer = peer_head.next_peer
                         while curr_peer.hostname != curr_rfc.rfc_peer_hostname:
                             curr_peer = curr_peer.next_peer
-                        rfc_list += ' ' + curr_peer.port + '\r\n'
+                        rfc_list += ' ' + str(curr_peer.port) + '\n'
                     curr_rfc = curr_rfc.next_rfc
                 if rfc_list == '':
-                    socket.send('P2P-CI/1.0 404 Not Found\r\n')
+                    peer_socket.send(bytes('P2P-CI/1.0 404 Not Found\n', 'utf-8'))
                 else:
-                    socket.send('P2P-CI/1.0 200 OK\r\n' + rfc_list)
+                    peer_socket.send(bytes('P2P-CI/1.0 200 OK\n' + rfc_list, 'utf-8'))
             elif request['method'] == 'LIST':
                 curr_rfc = rfc_head.next_rfc
                 rfc_list = ''
@@ -81,12 +102,13 @@ def peer_connection(socket: socket.socket, addr):
                     curr_peer = peer_head.next_peer
                     while curr_peer.hostname != curr_rfc.rfc_peer_hostname:
                         curr_peer = curr_peer.next_peer
-                    rfc_list += ' ' + curr_peer.port + '\r\n'
-                socket.send('P2P-CI/1.0 200 OK\r\n' + rfc_list)
+                    rfc_list += ' ' + curr_peer.port + '\n'
+                    curr_rfc = curr_rfc.next_rfc
+                peer_socket.send(bytes('P2P-CI/1.0 200 OK\n' + rfc_list, 'utf-8'))
             else:
-                socket.send('P2P-CI/1.0 400 Bad Request\r\n')
+                peer_socket.send(bytes('P2P-CI/1.0 400 Bad Request\n', 'utf-8'))
         except KeyError:
-            socket.send('P2P-CI/1.0 400 Bad Request\r\n')
+            peer_socket.send(bytes('P2P-CI/1.0 400 Bad Request\n', 'utf-8'))
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
