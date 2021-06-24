@@ -5,7 +5,6 @@ import socket
 import sys
 import threading
 import time
-from types import resolve_bases
 
 rfc_dir = Path(sys.argv[3])
 upload_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -54,7 +53,7 @@ for rfc in rfc_dir.iterdir():
     response = str(s.recv(4096), 'utf-8')
     print(response)
 
-print('Command format: (ADD/LOOKUP/LIST/CLOSE) (RFC_Number) (RFC_Title)')
+print('Command format: (ADD/LOOKUP/LIST/CLOSE) (RFC_Number) (RFC_Title) (GET optional)')
 while True:
     try:
         command = input('Enter a Command: ').split()
@@ -74,7 +73,7 @@ while True:
             s.send(bytes(request, 'utf-8'))
             response = str(s.recv(4096), 'utf-8')
             print(response)
-            if command[0] == 'LOOKUP':
+            if command[0] == 'LOOKUP' and command[len(command)-1] == 'GET':
                 response_lines = response.splitlines()
                 if response_lines[0] == 'P2P-CI/1.0 200 OK':
                     rfc_info = response_lines[1].split()
@@ -93,4 +92,4 @@ while True:
                         new_rfc.close()
     except:
         print('Invalid command.')
-        print('Command format: (ADD/LOOKUP/LIST/GET) (RFC_Number) (Optional Hostname for GET)')
+        print('Command format: (ADD/LOOKUP/LIST/CLOSE) (RFC_Number) (RFC_Title) (GET optional)')
