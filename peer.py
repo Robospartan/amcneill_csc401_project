@@ -85,7 +85,7 @@ while True:
                     if peer_response.split()[1] == '200':
                         data_start = peer_response.find('Content-Type: text/plain\n') + len('Content-Type: text/plain\n')
                         rfc_name = sys.argv[3] + '/RFC ' + command[1]
-                        for segment_index in range(2, len(command)):
+                        for segment_index in range(2, len(command)-1):
                             rfc_name += ' ' + command[segment_index]
                         new_rfc = open(rfc_name, 'w')
                         new_rfc.write(peer_response[data_start :])
