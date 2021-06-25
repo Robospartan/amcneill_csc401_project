@@ -17,3 +17,6 @@ request = 'LIST ALL P2P-CI/2.0\nHost: ' + sys.argv[2] + '\nPort: 39054\n'
 s.send(bytes(request, 'utf-8'))
 response = str(s.recv(4096), 'utf-8')
 print(response)
+
+s.send(bytes('CLOSE ' + sys.argv[2] + '\n', 'utf-8'))
+s.close()
